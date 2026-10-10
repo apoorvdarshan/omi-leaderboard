@@ -1,0 +1,6 @@
+{
+  "name": "omi-leaderboard",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node server.mjs" }
+}

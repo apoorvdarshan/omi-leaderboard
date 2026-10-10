@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omi Leaderboard · who ships the most</title>
+<meta name="description" content="Live contributor rankings for BasedHardware/omi.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔮</text></svg>">
+<style>
+  :root {
+    --bg: #050506;
+    --panel: rgba(255,255,255,.035);
+    --panel-solid: #0d0d10;
+    --line: rgba(255,255,255,.08);
+    --line-2: rgba(255,255,255,.14);
+    --text: #f4f4f6;
+    --muted: #8b8b96;
+    --dim: #55555f;
+    --accent: #b6f36b;
+    --accent-2: #6be4f3;
+    --gold: #ffcf5a; --silver: #d4dae6; --bronze: #e39a64;
+    --up: #6bf3a3; --down: #f36b7f;
+    --radius: 20px;
+    --ease: cubic-bezier(.2,.8,.2,1);
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); min-height: 100vh;
+    font: 15px/1.5 "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  /* Ambient backdrop: soft glow + faint grid that fades out. */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+    background:
+      radial-gradient(700px 420px at 15% -5%, rgba(182,243,107,.13), transparent 70%),
+      radial-gradient(800px 480px at 95% 0%, rgba(107,228,243,.10), transparent 70%);
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 56px 56px; opacity: .35;
+    mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, #000 30%, transparent 75%);
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 22px 140px; }
+
+  /* Top bar */
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; text-decoration: none; }
+  .brand .orb { width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, #b6f36b 35%, #2a6b3a 80%); box-shadow: 0 0 24px rgba(182,243,107,.5); }
+  .live { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .live i { width: 7px; height: 7px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 0 rgba(107,243,163,.6); animation: pulse 2s infinite; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(107,243,163,0); } 100% { box-shadow: 0 0 0 0 rgba(107,243,163,0); } }
+
+  .btn {
+    font: inherit; font-size: 13.5px; color: var(--text); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+    transition: border-color .2s, background .2s, transform .15s var(--ease);
+  }
+  .btn:hover { border-color: var(--line-2); background: rgba(255,255,255,.06); }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--accent); color: #0b1205; border-color: transparent; font-weight: 600; }
+  .btn.primary:hover { background: #c6f98a; }
+  .btn svg { width: 15px; height: 15px; }
+  .btn:disabled { opacity: .5; cursor: progress; }
+
+  /* Hero */
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 28px; align-items: end; margin: 54px 0 34px; }
+  .eyebrow { color: var(--accent); font-size: 12.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+  h1 { font-size: clamp(40px, 6vw, 68px); line-height: .98; letter-spacing: -.045em; margin: 14px 0 16px; font-weight: 750; }
+  h1 em { font-style: normal; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { color: var(--muted); max-width: 440px; margin: 0; }
+  .totals { display: flex; gap: 28px; margin-top: 26px; }
+  .totals b { display: block; font-size: 26px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .totals span { color: var(--muted); font-size: 12.5px; }
+
+  /* "You" card */
+  .me {
+    position: relative; border-radius: 26px; padding: 22px; overflow: hidden;
+    background: linear-gradient(160deg, rgba(182,243,107,.12), rgba(107,228,243,.05) 55%, rgba(255,255,255,.02));
+    border: 1px solid rgba(182,243,107,.25);
+    box-shadow: 0 30px 80px -30px rgba(182,243,107,.25), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .me-head { display: flex; align-items: center; gap: 12px; }
+  .me-head img { width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(182,243,107,.5); }
+  .me-head .name { font-weight: 650; font-size: 16px; }
+  .me-head .name small { display: block; color: var(--muted); font-weight: 400; font-size: 12.5px; }
+  .me-head .switch { margin-left: auto; color: var(--muted); font-size: 12.5px; background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font: inherit; }
+  .me-rank { display: flex; align-items: flex-end; gap: 14px; margin: 18px 0 6px; }
+  .me-rank .big { font-size: 84px; line-height: .85; font-weight: 800; letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
+  .me-rank .big sup { font-size: 34px; color: var(--accent); vertical-align: top; position: relative; top: 8px; margin-right: 2px; }
+  .me-rank .of { color: var(--muted); padding-bottom: 6px; font-size: 13.5px; line-height: 1.35; }
+  .delta { display: inline-flex; align-items: center; gap: 3px; font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .delta.up { color: var(--up); background: rgba(107,243,163,.1); }
+  .delta.down { color: var(--down); background: rgba(243,107,127,.1); }
+  .delta.same { color: var(--muted); background: rgba(255,255,255,.05); }
+  .progress { margin: 16px 0 6px; }
+  .progress .track { height: 8px; background: rgba(255,255,255,.07); border-radius: 99px; overflow: hidden; }
+  .progress .fill { height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 1s var(--ease); }
+  .progress .label { display: flex; justify-content: space-between; color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+  .progress .label b { color: var(--text); font-weight: 600; }
+  .spark { display: flex; align-items: flex-end; gap: 3px; height: 46px; margin-top: 16px; }
+  .spark i { flex: 1; background: rgba(182,243,107,.18); border-radius: 3px 3px 1px 1px; min-height: 2px; transition: background .2s; }
+  .spark i.hot { background: var(--accent); }
+  .spark-label { display: flex; justify-content: space-between; color: var(--dim); font-size: 11px; margin-top: 6px; }
+  .me-actions { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+  .me.empty { text-align: center; padding: 40px 22px; color: var(--muted); }
+
+  /* Controls */
+  .controls { position: sticky; top: 0; z-index: 5; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    padding: 12px 0; margin: 0 0 18px; background: linear-gradient(var(--bg) 70%, transparent); }
+  .seg { display: inline-flex; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 999px; padding: 3px; position: relative; }
+  .seg button { position: relative; z-index: 1; font: inherit; font-size: 13.5px; border: 0; background: transparent; color: var(--muted);
+    padding: 7px 14px; border-radius: 999px; cursor: pointer; transition: color .2s; white-space: nowrap; }
+  .seg button.on { color: #0b1205; font-weight: 600; }
+  .seg button:disabled { opacity: .3; cursor: not-allowed; }
+  .seg .pill { position: absolute; z-index: 0; top: 3px; bottom: 3px; border-radius: 999px; background: var(--accent); transition: left .35s var(--ease), width .35s var(--ease); }
+  .search { flex: 1; min-width: 180px; position: relative; }
+  .search input { width: 100%; font: inherit; font-size: 13.5px; color: var(--text); background: var(--panel-solid); border: 1px solid var(--line);
+    border-radius: 999px; padding: 9px 14px 9px 36px; outline: none; transition: border-color .2s; }
+  .search input:focus { border-color: var(--line-2); }
+  .search svg { position: absolute; left: 13px; top: 50%; translate: 0 -50%; width: 15px; height: 15px; color: var(--muted); }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; cursor: pointer; user-select: none; }
+  .toggle input { display: none; }
+  .toggle .sw { width: 32px; height: 19px; border-radius: 99px; background: rgba(255,255,255,.12); position: relative; transition: background .2s; }
+  .toggle .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: transform .25s var(--ease); }
+  .toggle input:checked + .sw { background: var(--accent); }
+  .toggle input:checked + .sw::after { transform: translateX(13px); }
+
+  /* Podium */
+  .podium { display: grid; grid-template-columns: 1fr 1.12fr 1fr; gap: 14px; align-items: end; margin-bottom: 26px; }
+  .pod { position: relative; text-decoration: none; text-align: center; border-radius: var(--radius); padding: 22px 14px 18px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--c) 10%, transparent), var(--panel));
+    border: 1px solid color-mix(in srgb, var(--c) 28%, transparent); transition: transform .3s var(--ease), border-color .3s; }
+  .pod:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--c) 55%, transparent); }
+  .pod.first { padding-top: 34px; padding-bottom: 28px; box-shadow: 0 30px 70px -35px color-mix(in srgb, var(--c) 60%, transparent); }
+  .pod .medal { position: absolute; top: 12px; left: 14px; font-size: 12px; font-weight: 700; color: var(--c); letter-spacing: .06em; }
+  .pod img { width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--c); background: #111; }
+  .pod.first img { width: 92px; height: 92px; }
+  .pod .crown { display: block; font-size: 22px; margin-bottom: 6px; }
+  .pod .name { font-weight: 650; margin-top: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pod .val { font-size: 30px; font-weight: 800; letter-spacing: -.03em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .pod.first .val { font-size: 38px; }
+  .pod .unit { color: var(--muted); font-size: 12px; }
+
+  /* Table */
+  .board { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
+  .row { display: grid; grid-template-columns: 56px minmax(0, 1fr) 150px 110px 70px; align-items: center; gap: 12px;
+    padding: 11px 18px; border-top: 1px solid var(--line); text-decoration: none; transition: background .15s; }
+  .row:first-child { border-top: 0; }
+  .row.head { color: var(--dim); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; padding-top: 13px; padding-bottom: 13px; }
+  a.row:hover { background: rgba(255,255,255,.035); }
+  .row .rk { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .row .who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .row .who img { width: 32px; height: 32px; border-radius: 50%; background: #111; flex: none; }
+  .row .who .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+  .row .who .tag { font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); padding: 1px 7px; border-radius: 99px; flex: none; }
+  .row .who .you-tag { font-size: 10.5px; color: #0b1205; background: var(--accent); padding: 1px 8px; border-radius: 99px; font-weight: 700; flex: none; }
+  .row .mini { display: flex; align-items: flex-end; gap: 2px; height: 22px; }
+  .row .mini i { flex: 1; background: rgba(255,255,255,.14); border-radius: 2px; min-height: 1px; }
+  .row .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .row .val small { display: block; color: var(--dim); font-weight: 400; font-size: 11.5px; }
+  .row .chg { text-align: right; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .row .chg.up { color: var(--up); } .row .chg.down { color: var(--down); } .row .chg.same { color: var(--dim); }
+  .row.you { background: linear-gradient(90deg, rgba(182,243,107,.12), rgba(182,243,107,.02)); box-shadow: inset 3px 0 0 var(--accent); }
+  .row.you .mini i { background: rgba(182,243,107,.55); }
+  .gap-row { text-align: center; color: var(--dim); padding: 6px; border-top: 1px solid var(--line); letter-spacing: .3em; }
+  .more { display: block; margin: 18px auto 0; }
+  .empty-state { padding: 60px 20px; text-align: center; color: var(--muted); }
+
+  /* Sticky "you" dock when your row scrolls away */
+  .dock { position: fixed; left: 50%; bottom: 18px; translate: -50% 140%; z-index: 20; display: flex; align-items: center; gap: 14px;
+    padding: 9px 10px 9px 16px; border-radius: 999px; background: rgba(16,18,14,.85); backdrop-filter: blur(16px) saturate(1.4);
+    border: 1px solid rgba(182,243,107,.3); box-shadow: 0 20px 50px -15px rgba(0,0,0,.8); transition: translate .45s var(--ease); white-space: nowrap; }
+  .dock.show { translate: -50% 0; }
+  .dock img { width: 28px; height: 28px; border-radius: 50%; }
+  .dock b { color: var(--accent); font-size: 18px; letter-spacing: -.02em; }
+  .dock span { color: var(--muted); font-size: 13px; }
+
+  .foot { color: var(--dim); font-size: 12.5px; text-align: center; margin-top: 40px; }
+  .toast { position: fixed; top: 18px; left: 50%; translate: -50% -150%; z-index: 30; background: var(--text); color: #000; font-weight: 600; font-size: 13.5px;
+    padding: 9px 16px; border-radius: 999px; opacity: 0; transition: translate .35s var(--ease), opacity .2s; }
+  .toast.show { translate: -50% 0; opacity: 1; }
+
+  /* Loading skeleton */
+  .skel { background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.09), rgba(255,255,255,.04)); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 12px; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .fade-in { animation: fade .5s var(--ease) both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; margin-top: 34px; }
+    .row { grid-template-columns: 44px minmax(0,1fr) 90px 52px; }
+    .row .mini, .row .h-mini { display: none; }
+  }
+  @media (max-width: 560px) {
+    .podium { grid-template-columns: 1fr; }
+    .pod.first { order: -1; }
+    .row { grid-template-columns: 36px minmax(0,1fr) 80px; padding: 10px 12px; }
+    .row .chg, .row .h-chg { display: none; }
+    .me-rank .big { font-size: 68px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="https://github.com/BasedHardware/omi" target="_blank" rel="noopener"><span class="orb"></span>omi leaderboard</a>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span class="live" id="live"><i></i>Syncing…</span>
+      <button class="btn" id="refresh" title="Pull the latest data from GitHub">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Refresh
+      </button>
+    </div>
+  </div>
+
+  <section class="hero">
+    <div>
+      <div class="eyebrow">BasedHardware / omi</div>
+      <h1>Who ships the most to <em>Omi</em>?</h1>
+      <p class="lede">Live rankings for every contributor to the open-source AI wearable, built from every merged pull request and commit on GitHub.</p>
+      <div class="totals" id="totals"></div>
+    </div>
+    <div id="me"><div class="me"><div class="skel" style="height:250px"></div></div></div>
+  </section>
+
+  <div class="controls">
+    <div class="seg" id="metric">
+      <span class="pill"></span>
+      <button data-v="prs">Merged PRs</button>
+      <button data-v="lines">Lines changed</button>
+      <button data-v="commits">Commits</button>
+    </div>
+    <div class="seg" id="period">
+      <span class="pill"></span>
+      <button data-v="all">All time</button>
+      <button data-v="365">Year</button>
+      <button data-v="90">90d</button>
+      <button data-v="30">30d</button>
+      <button data-v="7">7d</button>
+    </div>
+    <label class="toggle"><input type="checkbox" id="bots" checked><span class="sw"></span>Hide bots</label>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="q" placeholder="Search contributors" autocomplete="off">
+    </div>
+  </div>
+
+  <div id="podium" class="podium"></div>
+  <div id="board"><div class="board">${""}</div></div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<div class="dock" id="dock"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DAY = 864e5, WEEK = 7 * DAY;
+const params = new URLSearchParams(location.search);
+const state = {
+  metric: params.get("metric") || "prs",
+  period: params.get("period") || "all",
+  hideBots: params.get("bots") !== "1",
+  q: "",
+  me: (params.get("me") || localStorage.getItem("omi-me") || "apoorvdarshan").toLowerCase(),
+  limit: 50,
+  data: null,
+};
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.round(n).toLocaleString("en-US");
+const compact = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1e4 ? Math.round(n / 1e3) + "k" : fmt(n);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const avatar = (u, s = 64) => `https://avatars.githubusercontent.com/${encodeURIComponent(u)}?s=${s}`;
+const UNITS = { prs: ["merged PR", "merged PRs"], commits: ["commit", "commits"], lines: ["line changed", "lines changed"] };
+const unit = (n, m = state.metric) => UNITS[m][n === 1 ? 0 : 1];
+const PERIOD_TEXT = { all: "all time", 365: "this past year", 90: "in the last 90 days", 30: "in the last 30 days", 7: "in the last 7 days" };
+const SPARK_WEEKS = 26, MINI_WEEKS = 12;
+
+// Per-user aggregates for merged PRs inside [from, to), plus weekly buckets
+// ending at `to` for the sparklines.
+function aggregate(from, to, weeks = 0) {
+  const out = new Map();
+  for (const p of state.data.prs) {
+    const t = Date.parse(p.m);
+    if (t >= to) continue;
+    let r = out.get(p.u);
+    if (!r) out.set(p.u, (r = { u: p.u, bot: p.bot, prs: 0, lines: 0, first: t, weeks: new Array(weeks).fill(0) }));
+    if (t < r.first) r.first = t;
+    if (weeks) {
+      const w = Math.floor((to - t) / WEEK);
+      if (w < weeks) r.weeks[weeks - 1 - w] += state.metric === "lines" ? p.a + p.d : 1;
+    }
+    if (t < from) continue;
+    r.prs++;
+    r.lines += p.a + p.d;
+  }
+  return out;
+}
+
+function rank(list) {
+  list.sort((a, b) => b.v - a.v || a.u.localeCompare(b.u));
+  list.forEach((r, i) => (r.rank = i > 0 && list[i - 1].v === r.v ? list[i - 1].rank : i + 1));
+  return list;
+}
+
+function build() {
+  const now = Date.now();
+  if (state.metric === "commits") {
+    const list = state.data.contributors
+      .filter((c) => !(state.hideBots && c.bot))
+      .map((c) => ({ u: c.u, bot: c.bot, v: c.c, weeks: null }));
+    return { list: rank(list), prev: null };
+  }
+  const span = state.period === "all" ? Infinity : Number(state.period) * DAY;
+  const pick = (r) => (state.metric === "prs" ? r.prs : r.lines);
+  const toList = (m) => rank([...m.values()].filter((r) => !(state.hideBots && r.bot)).map((r) => ({ ...r, v: pick(r) })).filter((r) => r.v > 0));
+  const list = toList(aggregate(now - span, now, SPARK_WEEKS));
+  // Same window shifted back a week, to show who climbed.
+  const prev = new Map(toList(aggregate(now - WEEK - span, now - WEEK)).map((r) => [r.u, r.rank]));
+  return { list, prev };
+}
+
+function deltaOf(r, prev) {
+  if (!prev) return null;
+  const before = prev.get(r.u);
+  if (before == null) return { cls: "up", txt: "new" };
+  const d = before - r.rank;
+  return d > 0 ? { cls: "up", txt: `▲ ${d}` } : d < 0 ? { cls: "down", txt: `▼ ${-d}` } : { cls: "same", txt: "–" };
+}
+
+function bars(weeks, cls = "") {
+  const max = Math.max(1, ...weeks);
+  return weeks.map((w) => `<i class="${w && cls}" style="height:${w ? Math.max(8, (w / max) * 100) : 4}%"></i>`).join("");
+}
+
+function countUp(el, to, ms = 900) {
+  const start = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - start) / ms);
+    el.textContent = fmt(to * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function renderTotals() {
+  const d = state.data;
+  const people = new Set(d.prs.filter((p) => !p.bot).map((p) => p.u)).size;
+  const lines = d.prs.reduce((s, p) => s + p.a + p.d, 0);
+  $("totals").innerHTML = `
+    <div><b data-n="${d.prs.length}">0</b><span>merged PRs</span></div>
+    <div><b data-n="${people}">0</b><span>contributors</span></div>
+    <div><b>${compact(lines)}</b><span>lines changed</span></div>`;
+  $("totals").querySelectorAll("b[data-n]").forEach((b) => countUp(b, Number(b.dataset.n)));
+}
+
+function renderMe(list, prev) {
+  const when = state.metric === "commits" ? "all time" : PERIOD_TEXT[state.period];
+  const idx = list.findIndex((r) => r.u.toLowerCase() === state.me);
+  const me = list[idx];
+  if (!me) {
+    $("me").innerHTML = `<div class="me empty fade-in">
+      <div style="font-size:15px;color:var(--text);margin-bottom:6px"><b>${esc(state.me)}</b> isn't on this board yet</div>
+      No ${UNITS[state.metric][1]} ${when}.<div style="margin-top:16px"><button class="btn" id="setme">Change username</button></div></div>`;
+    $("setme").onclick = setMe;
+    return null;
+  }
+  const ahead = list.slice(0, idx).reverse().find((r) => r.v > me.v);
+  const need = ahead ? ahead.v - me.v + 1 : 0;
+  const pct = ahead ? Math.max(4, Math.min(100, (me.v / (ahead.v + 1)) * 100)) : 100;
+  const delta = deltaOf(me, prev);
+  const top = Math.max(1, Math.ceil((me.rank / list.length) * 100));
+  $("me").innerHTML = `
+    <div class="me fade-in">
+      <div class="me-head">
+        <img src="${avatar(me.u, 96)}" alt="">
+        <div class="name">${esc(me.u)}<small>${fmt(me.v)} ${unit(me.v)} · ${when}</small></div>
+        <button class="switch" id="setme">not you?</button>
+      </div>
+      <div class="me-rank">
+        <div class="big"><sup>#</sup><span id="me-rank">${me.rank}</span></div>
+        <div class="of">of ${fmt(list.length)} contributors<br>
+          <span style="color:var(--text)">top ${top}%</span>
+          ${delta ? `&nbsp;<span class="delta ${delta.cls}" title="Change vs. a week ago">${delta.txt}${delta.cls !== "same" && delta.txt !== "new" ? " this week" : ""}</span>` : ""}
+        </div>
+      </div>
+      <div class="progress">
+        <div class="track"><div class="fill" id="me-fill"></div></div>
+        <div class="label">${ahead
+          ? `<span><b>${fmt(need)}</b> more ${unit(need)} to pass <b>${esc(ahead.u)}</b></span><span>#${ahead.rank}</span>`
+          : `<span><b>You're #1.</b> Nobody's ahead.</span><span>👑</span>`}</div>
+      </div>
+      ${me.weeks ? `<div class="spark">${bars(me.weeks, "hot")}</div>
+        <div class="spark-label"><span>${SPARK_WEEKS} weeks ago</span><span>this week</span></div>` : ""}
+      <div class="me-actions">
+        <button class="btn primary" id="card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg>Download share card</button>
+        <button class="btn" id="copy">Copy brag</button>
+        <button class="btn" id="link">Copy link</button>
+      </div>
+    </div>`;
+  requestAnimationFrame(() => requestAnimationFrame(() => ($("me-fill").style.width = pct + "%")));
+  $("setme").onclick = setMe;
+  $("copy").onclick = () => copy(`I'm #${me.rank} of ${fmt(list.length)} contributors to @omidotme's open-source repo (BasedHardware/omi) with ${fmt(me.v)} ${unit(me.v)} ${when} 🔮`);
+  $("link").onclick = () => copy(shareUrl());
+  $("card").onclick = () => downloadCard(me, list.length, when, top);
+  return me;
+}
+
+function renderPodium(list) {
+  const top3 = list.slice(0, 3);
+  const order = [top3[1], top3[0], top3[2]];
+  const colors = { 1: "var(--gold)", 2: "var(--silver)", 3: "var(--bronze)" };
+  $("podium").innerHTML = order.map((r) => r ? `
+    <a class="pod fade-in ${r === top3[0] ? "first" : ""}" style="--c:${colors[list.indexOf(r) + 1]}" href="https://github.com/${esc(r.u)}" target="_blank" rel="noopener">
+      <span class="medal">#${r.rank}</span>
+      ${r === top3[0] ? '<span class="crown">👑</span>' : ""}
+      <img src="${avatar(r.u, 192)}" alt="">
+      <div class="name">${esc(r.u)}</div>
+      <div class="val">${fmt(r.v)}</div>
+      <div class="unit">${unit(r.v)}</div>
+    </a>` : "<div></div>").join("");
+}
+
+function row(r, prev, me) {
+  const d = deltaOf(r, prev);
+  const sub = state.metric === "prs" ? `${compact(r.lines)} lines` : state.metric === "lines" ? `${fmt(r.prs)} PRs` : "";
+  return `
+    <a class="row ${r === me ? "you" : ""}" href="https://github.com/BasedHardware/omi/pulls?q=is%3Apr+is%3Amerged+author%3A${encodeURIComponent(r.u)}" target="_blank" rel="noopener" ${r === me ? 'id="my-row"' : ""}>
+      <span class="rk">${r.rank}</span>
+      <span class="who"><img src="${avatar(r.u, 64)}" alt="" loading="lazy"><span class="n">${esc(r.u)}</span>${r === me ? '<span class="you-tag">YOU</span>' : ""}${r.bot ? '<span class="tag">bot</span>' : ""}</span>
+      <span class="mini">${r.weeks ? bars(r.weeks.slice(-MINI_WEEKS)) : ""}</span>
+      <span class="val">${fmt(r.v)}${sub ? `<small>${sub}</small>` : ""}</span>
+      <span class="chg ${d ? d.cls : "same"}">${d ? d.txt : ""}</span>
+    </a>`;
+}
+
+function renderBoard(list, prev, me) {
+  const q = state.q.trim().toLowerCase();
+  const filtered = q ? list.filter((r) => r.u.toLowerCase().includes(q)) : list.slice(3);
+  const shown = filtered.slice(0, state.limit);
+  const pinMe = me && !q && !shown.includes(me) && list.indexOf(me) >= 3;
+  const head = `<div class="row head"><span>Rank</span><span>Contributor</span><span class="h-mini">Last ${MINI_WEEKS} weeks</span><span style="text-align:right">${UNITS[state.metric][1]}</span><span class="h-chg" style="text-align:right">7d</span></div>`;
+  $("board").innerHTML = filtered.length || pinMe ? `
+    <div class="board fade-in">${head}${shown.map((r) => row(r, prev, me)).join("")}
+      ${pinMe ? `<div class="gap-row">···</div>${row(me, prev, me)}` : ""}
+    </div>
+    ${filtered.length > state.limit ? `<button class="btn more" id="more">Show ${fmt(Math.min(100, filtered.length - state.limit))} more · ${fmt(filtered.length - state.limit)} left</button>` : ""}`
+    : `<div class="board"><div class="empty-state">No contributors match “${esc(state.q)}”.</div></div>`;
+  if ($("more")) $("more").onclick = () => { state.limit += 100; render(); };
+}
+
+function renderDock(me, total) {
+  const dock = $("dock");
+  if (!me) { dock.classList.remove("show"); dock.innerHTML = ""; return; }
+  dock.innerHTML = `<img src="${avatar(me.u, 56)}" alt=""><b>#${me.rank}</b><span>${fmt(me.v)} ${unit(me.v)} · of ${fmt(total)}</span>
+    <button class="btn primary" id="dock-top" style="padding:6px 12px">My rank ↑</button>`;
+  $("dock-top").onclick = () => window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+let observer;
+function watchMe() {
+  observer?.disconnect();
+  const targets = [document.querySelector("#me .me"), $("my-row")].filter(Boolean);
+  if (!targets.length || !$("dock").innerHTML) return;
+  const visible = new Set();
+  observer = new IntersectionObserver((entries) => {
+    entries.forEach((e) => (e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)));
+    $("dock").classList.toggle("show", visible.size === 0);
+  });
+  targets.forEach((t) => observer.observe(t));
+}
+
+function render() {
+  const { list, prev } = build();
+  document.querySelectorAll("#period button").forEach((b) => (b.disabled = state.metric === "commits"));
+  const me = renderMe(list, prev);
+  renderPodium(list);
+  renderBoard(list, prev, me);
+  renderDock(me, list.length);
+  movePills();
+  watchMe();
+  history.replaceState(null, "", shareUrl());
+}
+
+function movePills() {
+  document.querySelectorAll(".seg").forEach((seg) => {
+    const on = seg.querySelector("button.on");
+    const pill = seg.querySelector(".pill");
+    if (!on) return;
+    pill.style.left = on.offsetLeft + "px";
+    pill.style.width = on.offsetWidth + "px";
+    pill.style.opacity = on.disabled ? ".25" : "1";
+  });
+}
+
+function shareUrl() {
+  const u = new URL(location.href);
+  const p = new URLSearchParams({ metric: state.metric, period: state.period, me: state.me });
+  if (!state.hideBots) p.set("bots", "1");
+  u.search = p.toString();
+  return u.toString();
+}
+
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast("Copied to clipboard"); }
+  catch { prompt("Copy this:", text); }
+}
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 1800);
+}
+function setMe() {
+  const v = prompt("Your GitHub username", state.me);
+  if (!v) return;
+  state.me = v.trim().replace(/^@/, "").toLowerCase();
+  localStorage.setItem("omi-me", state.me);
+  render();
+}
+
+async function downloadCard(me, total, when, top) {
+  const W = 1200, H = 630, c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.fillStyle = "#050506"; g.fillRect(0, 0, W, H);
+  const glow = (x, y, r, col) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, col); gr.addColorStop(1, "transparent"); g.fillStyle = gr; g.fillRect(0, 0, W, H); };
+  glow(200, 0, 520, "rgba(182,243,107,.22)");
+  glow(1150, 80, 560, "rgba(107,228,243,.16)");
+  g.strokeStyle = "rgba(255,255,255,.05)"; g.lineWidth = 1;
+  for (let x = 0; x < W; x += 56) { g.beginPath(); g.moveTo(x + .5, 0); g.lineTo(x + .5, H); g.stroke(); }
+  for (let y = 0; y < H; y += 56) { g.beginPath(); g.moveTo(0, y + .5); g.lineTo(W, y + .5); g.stroke(); }
+  const font = (w, s) => `${w} ${s}px Inter, -apple-system, "SF Pro Display", system-ui, sans-serif`;
+
+  g.fillStyle = "#b6f36b"; g.font = font(700, 22); g.fillText("OMI LEADERBOARD", 80, 92);
+  g.fillStyle = "#8b8b96"; g.font = font(500, 22); g.fillText("github.com/BasedHardware/omi", W - 80 - g.measureText("github.com/BasedHardware/omi").width, 92);
+
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = avatar(me.u, 300);
+    await img.decode();
+    g.save(); g.beginPath(); g.arc(160, 300, 80, 0, Math.PI * 2); g.clip(); g.drawImage(img, 80, 220, 160, 160); g.restore();
+    g.strokeStyle = "#b6f36b"; g.lineWidth = 5; g.beginPath(); g.arc(160, 300, 82, 0, Math.PI * 2); g.stroke();
+  } catch {}
+  g.fillStyle = "#f4f4f6"; g.font = font(700, 48); g.fillText(me.u, 280, 285);
+  g.fillStyle = "#8b8b96"; g.font = font(400, 28); g.fillText(`${fmt(me.v)} ${unit(me.v)} · ${when}`, 280, 332);
+
+  const rankText = `#${me.rank}`;
+  g.font = font(800, 210);
+  const rw = g.measureText(rankText).width;
+  const grad = g.createLinearGradient(W - 80 - rw, 0, W - 80, 0);
+  grad.addColorStop(0, "#b6f36b"); grad.addColorStop(1, "#6be4f3");
+  g.fillStyle = grad; g.fillText(rankText, W - 80 - rw, 375);
+  g.fillStyle = "#8b8b96"; g.font = font(500, 26);
+  const of = `of ${fmt(total)} contributors · top ${top}%`;
+  g.fillText(of, W - 80 - g.measureText(of).width, 420);
+
+  if (me.weeks) {
+    const bw = (W - 160) / me.weeks.length, max = Math.max(1, ...me.weeks);
+    me.weeks.forEach((w, i) => {
+      const h = w ? Math.max(6, (w / max) * 90) : 3;
+      g.fillStyle = w ? "#b6f36b" : "rgba(255,255,255,.1)";
+      g.beginPath(); g.roundRect(80 + i * bw + 2, 560 - h, bw - 4, h, 3); g.fill();
+    });
+    g.fillStyle = "#55555f"; g.font = font(400, 18); g.fillText(`last ${me.weeks.length} weeks`, 80, 595);
+  }
+  const a = document.createElement("a");
+  a.download = `omi-rank-${me.u}.png`;
+  a.href = c.toDataURL("image/png");
+  a.click();
+  toast("Share card downloaded");
+}
+
+function bindSeg(id, key) {
+  document.querySelectorAll(`#${id} button`).forEach((b) => {
+    b.classList.toggle("on", b.dataset.v === state[key]);
+    b.onclick = () => {
+      if (b.disabled) return;
+      state[key] = b.dataset.v;
+      state.limit = 50;
+      document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b));
+      render();
+    };
+  });
+}
+
+function timeAgo(iso) {
+  const s = (Date.now() - Date.parse(iso)) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+async function load() {
+  const res = await fetch("/api/data");
+  if (!res.ok) throw new Error(await res.text());
+  state.data = await res.json();
+  $("live").innerHTML = `<i></i>Updated ${timeAgo(state.data.syncedAt)}`;
+  $("foot").textContent = `${fmt(state.data.prs.length)} merged PRs · ${fmt(state.data.contributors.length)} commit authors · data from the GitHub API, refreshed every 30 minutes`;
+  renderTotals();
+  render();
+}
+
+bindSeg("metric", "metric");
+bindSeg("period", "period");
+$("bots").checked = state.hideBots;
+$("bots").onchange = (e) => { state.hideBots = e.target.checked; render(); };
+$("q").oninput = (e) => { state.q = e.target.value; state.limit = 50; render(); };
+addEventListener("resize", movePills);
+$("refresh").onclick = async () => {
+  const b = $("refresh");
+  b.disabled = true;
+  $("live").innerHTML = "<i></i>Syncing…";
+  try { await fetch("/api/refresh", { method: "POST" }); await load(); toast("Up to date"); }
+  finally { b.disabled = false; }
+};
+$("board").innerHTML = `<div class="board">${Array.from({ length: 8 }, () => '<div class="row"><div class="skel" style="height:20px;grid-column:1/-1"></div></div>').join("")}</div>`;
+load().catch((err) => ($("board").innerHTML = `<div class="board"><div class="empty-state">Couldn't load data: ${esc(err.message)}</div></div>`));
+</script>
+</body>
+</html>
