@@ -10,6 +10,7 @@ const PORT = Number(process.env.PORT || 3000);
 const OWNER = "BasedHardware";
 const REPO = "omi";
 const REFRESH_MS = 30 * 60 * 1000;
+const MIME = { png: "image/png", jpg: "image/jpeg", svg: "image/svg+xml", webp: "image/webp" };
 
 const token =
   process.env.GITHUB_TOKEN ||
@@ -170,12 +171,22 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ syncedAt: cache.syncedAt }));
     }
+    if (url.pathname.startsWith("/assets/")) {
+      const name = url.pathname.slice("/assets/".length);
+      if (!/^[\w.-]+$/.test(name)) throw Object.assign(new Error("Not found"), { status: 404 });
+      const file = await readFile(join(ROOT, "public", "assets", name));
+      res.writeHead(200, {
+        "Content-Type": MIME[name.split(".").pop()] || "application/octet-stream",
+        "Cache-Control": "public, max-age=86400",
+      });
+      return res.end(file);
+    }
     const html = await readFile(join(ROOT, "public", "index.html"));
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(html);
   } catch (err) {
-    console.error(err);
-    res.writeHead(500, { "Content-Type": "text/plain" });
+    if (err.code !== "ENOENT" && err.status !== 404) console.error(err);
+    res.writeHead(err.code === "ENOENT" || err.status === 404 ? 404 : 500, { "Content-Type": "text/plain" });
     res.end(String(err.message || err));
   }
 });
