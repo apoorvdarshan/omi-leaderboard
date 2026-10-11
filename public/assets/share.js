@@ -14,8 +14,8 @@ function loadImage(src) {
 export async function createShareCard(personal, settings) {
   await document.fonts.ready;
   const [photo, logo, avatar] = await Promise.all([
-    loadImage('/assets/omi-studio-v2.png'),
-    loadImage('/assets/omi-logo.png'),
+    loadImage(new URL('./omi-studio-v2.png', import.meta.url).href),
+    loadImage(new URL('./omi-logo.png', import.meta.url).href),
     loadImage(`https://avatars.githubusercontent.com/${encodeURIComponent(personal.me.username)}?s=160`).catch(() => null),
   ]);
   const canvas = document.createElement('canvas');

@@ -7,9 +7,12 @@ const esc = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', 
 const avatar = (username, size = 80) => `https://avatars.githubusercontent.com/${encodeURIComponent(username)}?s=${size}`;
 const save = (key, value) => { try { localStorage.setItem(key, value); } catch { /* Preferences still work for this visit. */ } };
 const INITIAL_ROWS = 4;
+const STATIC_MODE = document.querySelector('meta[name="omi-data-mode"]')?.content === 'static';
+const DATA_URL = STATIC_MODE ? './data/leaderboard.json' : './api/data';
+const REFRESH_LABEL = STATIC_MODE ? 'Load latest published rankings' : 'Refresh GitHub data';
 const state = { ...parseSettings(location.search), query: '', limit: INITIAL_ROWS, data: null };
 let rankings = { list: [], previous: null }, personal = null, observer, shareCanvas, shareSettings, sharePersonal;
-let toastTimer, searchTimer, shareRequest = 0;
+let toastTimer, searchTimer, shareRequest = 0, loading;
 const showValue = value => formatValue(value, state.metric);
 const selectedPeriod = () => state.metric === 'commits' ? 'all time' : PERIODS[state.period];
 const scrollTo = element => element?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
@@ -149,7 +152,7 @@ function renderFeed() {
   const href = `https://github.com/${REPO}/pulls?q=is%3Apr+is%3Amerged+sort%3Aupdated-desc`;
   $('feed').innerHTML = `<div class="feed-header"><h3 class="feed-title"><i aria-hidden="true"></i>Just merged</h3><a href="${href}" target="_blank" rel="noopener" aria-label="View merged pull requests on GitHub">${icon('external')}</a></div>
     <ol class="feed-list">${prs.map(pr => `<li class="feed-item ${pr.u.toLowerCase() === state.me ? 'mine' : ''}"><a href="https://github.com/${REPO}/pull/${pr.n}" target="_blank" rel="noopener"><span class="merge-node">${icon('merge')}</span><span class="feed-content"><span class="feed-name">${esc(pr.t)}</span><span class="feed-meta"><span class="author">${esc(pr.u)}</span><span>#${pr.n}</span><time datetime="${esc(pr.m)}" title="${esc(new Date(pr.m).toLocaleString())}">${ago(pr.m)}</time></span></span></a></li>`).join('')}</ol>
-    <div class="feed-footer"><a class="text-link" href="${href}" target="_blank" rel="noopener">View all merged PRs ${icon('external')}</a><p>GitHub data, refreshed every 30 minutes.</p></div>`;
+    <div class="feed-footer"><a class="text-link" href="${href}" target="_blank" rel="noopener">View all merged PRs ${icon('external')}</a><p>${STATIC_MODE ? 'Updates scheduled every 30 minutes.' : 'GitHub data, refreshed every 30 minutes.'}</p></div>`;
 }
 
 function renderDock() {
@@ -265,14 +268,31 @@ async function openShare() {
   } finally { if (request === shareRequest) $('share-preview').setAttribute('aria-busy', 'false'); }
 }
 
-async function load() {
-  const response = await fetch('/api/data', { cache: 'no-store' });
+function load() {
+  if (loading) return loading;
+  loading = fetchData().finally(() => { loading = null; });
+  return loading;
+}
+
+async function fetchData() {
+  const response = await fetch(DATA_URL, { cache: 'no-store' });
   if (!response.ok) throw new Error('GitHub data is temporarily unavailable.');
   const data = await response.json();
   if (!Array.isArray(data.prs) || !Array.isArray(data.contributors) || !data.syncedAt) throw new Error('The server returned incomplete rankings.');
+  const changed = state.data?.syncedAt !== data.syncedAt;
   state.data = data;
   $('synced').classList.remove('error');
-  renderFacts(); render();
+  if (changed) {
+    // Background updates preserve text being entered and do not steal focus.
+    const draft = $('rank-username')?.value, activeId = document.activeElement?.id;
+    const selection = document.activeElement instanceof HTMLInputElement ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+    renderFacts(); render();
+    if (draft != null && $('rank-username')) $('rank-username').value = draft;
+    if (activeId && $(activeId)) {
+      $(activeId).focus({ preventScroll: true });
+      if (selection && selection[0] != null) $(activeId).setSelectionRange(...selection);
+    }
+  } else updateSync();
 }
 
 function showLoadError() {
@@ -329,18 +349,32 @@ $('download-card').onclick = async () => {
 };
 $('refresh').onclick = async () => {
   $('refresh').disabled = true; $('refresh').setAttribute('aria-busy', 'true');
-  $('refresh').setAttribute('aria-label', 'Refreshing GitHub data');
+  $('refresh').setAttribute('aria-label', STATIC_MODE ? 'Loading latest rankings' : 'Refreshing GitHub data');
   try {
-    const response = await fetch('/api/refresh', { method: 'POST' });
-    if (!response.ok) throw new Error('Refresh failed');
-    await load(); toast('Rankings are up to date');
+    if (!STATIC_MODE) {
+      const response = await fetch('./api/refresh', { method: 'POST' });
+      if (!response.ok) throw new Error('Refresh failed');
+    }
+    await load(); toast(STATIC_MODE ? 'Latest published rankings loaded' : 'Rankings are up to date');
   } catch {
     if (!state.data) showLoadError();
     else { $('synced').classList.add('error'); toast('Couldn’t refresh. Showing the last successful sync.'); }
   } finally {
     $('refresh').disabled = false; $('refresh').setAttribute('aria-busy', 'false');
-    $('refresh').setAttribute('aria-label', 'Refresh GitHub data');
+    $('refresh').setAttribute('aria-label', REFRESH_LABEL);
   }
 };
+$('refresh').setAttribute('aria-label', REFRESH_LABEL);
+$('refresh').title = REFRESH_LABEL;
 load().catch(showLoadError);
 setInterval(updateSync, 60000);
+// Check the published snapshot without requiring visitors to reload the tab.
+const backgroundRefresh = () => {
+  if (document.hidden || $('refresh').disabled || document.querySelector('dialog[open]')) return;
+  load().catch(() => {
+    if (!state.data) showLoadError();
+    else { $('synced').classList.add('error'); $('synced').querySelector('span').textContent = `Offline · Updated ${ago(state.data.syncedAt)}`; }
+  });
+};
+setInterval(backgroundRefresh, 5 * 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) backgroundRefresh(); });

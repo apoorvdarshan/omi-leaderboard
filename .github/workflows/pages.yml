@@ -1,0 +1,63 @@
+name: Refresh rankings and deploy Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    # Avoid the busiest top-of-hour minutes. Times are UTC.
+    - cron: '17,47 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Restore GitHub data cache
+        uses: actions/cache/restore@v6
+        with:
+          path: data/cache.json
+          key: omi-data-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: omi-data-v1-
+      - name: Test
+        run: npm test
+      - name: Fetch public GitHub data and build static site
+        run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Save successful data sync
+        uses: actions/cache/save@v6
+        with:
+          path: data/cache.json
+          key: omi-data-v1-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v6
+      - name: Publish
+        id: deployment
+        uses: actions/deploy-pages@v5

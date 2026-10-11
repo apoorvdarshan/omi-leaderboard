@@ -2,3 +2,6 @@ data/
 node_modules/
 *.log
 .qa/
+dist/
+.env
+.env.*
