@@ -9,13 +9,13 @@ export const units = (n, metric) => UNITS[metric][n === 1 ? 0 : 1];
 export const validUsername = value => /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i.test(value);
 export const normalizeUsername = value => String(value || '').trim().replace(/^@/, '').toLowerCase();
 
-export function parseSettings(search, savedUser) {
+export function parseSettings(search) {
   const p = new URLSearchParams(search);
-  const requested = normalizeUsername(p.get('me') || savedUser || 'apoorvdarshan');
+  const requested = normalizeUsername(p.get('me'));
   return {
     metric: Object.hasOwn(LABELS, p.get('metric')) ? p.get('metric') : 'prs',
     period: Object.hasOwn(PERIODS, p.get('period')) ? p.get('period') : 'all',
-    me: validUsername(requested) ? requested : 'apoorvdarshan',
+    me: validUsername(requested) ? requested : '',
     hideBots: p.get('bots') !== '1',
   };
 }

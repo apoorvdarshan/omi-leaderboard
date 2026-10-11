@@ -5,10 +5,9 @@ import { createShareCard, downloadCanvas } from './share.js';
 const $ = id => document.getElementById(id);
 const esc = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const avatar = (username, size = 80) => `https://avatars.githubusercontent.com/${encodeURIComponent(username)}?s=${size}`;
-const readSaved = key => { try { return localStorage.getItem(key); } catch { return null; } };
 const save = (key, value) => { try { localStorage.setItem(key, value); } catch { /* Preferences still work for this visit. */ } };
 const INITIAL_ROWS = 4;
-const state = { ...parseSettings(location.search, readSaved('omi-me')), query: '', limit: INITIAL_ROWS, data: null };
+const state = { ...parseSettings(location.search), query: '', limit: INITIAL_ROWS, data: null };
 let rankings = { list: [], previous: null }, personal = null, observer, shareCanvas, shareSettings, sharePersonal;
 let toastTimer, searchTimer, shareRequest = 0;
 const showValue = value => formatValue(value, state.metric);
@@ -40,7 +39,10 @@ function applyTheme(value) {
 
 function shareUrl(settings = state) {
   const url = new URL(location.href);
-  const params = new URLSearchParams({ me: settings.me, metric: settings.metric, period: settings.metric === 'commits' ? 'all' : settings.period });
+  const params = new URLSearchParams();
+  if (settings.me) params.set('me', settings.me);
+  if (settings.metric !== 'prs') params.set('metric', settings.metric);
+  if (settings.metric !== 'commits' && settings.period !== 'all') params.set('period', settings.period);
   if (!settings.hideBots) params.set('bots', '1');
   url.search = params.toString(); url.hash = '';
   return url.href;
@@ -56,6 +58,15 @@ function movementView(row, previous) {
 }
 
 function renderProfile() {
+  $('profile').classList.toggle('profile-discovery', !state.me);
+  $('profile').setAttribute('aria-busy', 'false');
+  $('profile').setAttribute('aria-label', state.me ? 'Your contribution' : 'Find your rank');
+  if (!state.me) {
+    $('profile').innerHTML = `<div class="discovery-copy"><h2>What’s your GitHub username?</h2><p>Find your rank and see what you’ve shipped to Omi.</p></div>
+      <form id="rank-form" class="rank-form"><label class="sr" for="rank-username">GitHub username</label><div class="rank-input-row"><div class="username-input"><span aria-hidden="true">@</span><input id="rank-username" name="username" maxlength="39" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Your username" required aria-describedby="rank-error"></div><button class="button primary" type="submit">Show my rank ${icon('right')}</button></div><p class="field-error" id="rank-error" role="alert"></p></form>`;
+    bindIdentityForm($('rank-form'), $('rank-username'), $('rank-error'));
+    return;
+  }
   const username = personal?.me.username || state.me;
   const identity = `<div class="profile-identity"><img class="profile-avatar" src="${avatar(username, 144)}" alt="" width="72" height="72"><div class="identity-text"><div class="identity-name"><strong>${esc(username)}</strong><button class="icon-button" id="edit-user" type="button" aria-label="Change GitHub username" title="Change GitHub username">${icon('pencil')}</button></div><span>Your contribution</span></div></div>`;
   if (personal) {
@@ -70,7 +81,6 @@ function renderProfile() {
     $('profile').innerHTML = `${identity}<div class="profile-empty"><strong>No contributions in this view.</strong>No ${units(0, state.metric)} ${selectedPeriod()}. Try another range or username.</div><div class="profile-action"><button class="button secondary" type="button" id="change-empty">Find your rank</button></div>`;
     $('change-empty').onclick = openIdentity;
   }
-  $('profile').setAttribute('aria-busy', 'false');
   $('edit-user').onclick = openIdentity;
 }
 
@@ -171,7 +181,7 @@ function render() {
   $('period').value = state.metric === 'commits' ? 'all' : state.period;
   $('period-note').hidden = state.metric !== 'commits';
   $('bots').checked = state.hideBots;
-  $('ranking-description').textContent = state.metric === 'commits' ? 'Ranked by commits on the default branch. The blue light marks you.' : 'Ranked by what landed on main. The blue light marks you.';
+  $('ranking-description').textContent = (state.metric === 'commits' ? 'Ranked by commits on the default branch.' : 'Ranked by what landed on main.') + (personal ? ' The blue light marks you.' : ' Every contribution counts.');
   renderProfile(); renderLeaders(); renderDock(); renderTable(); renderFeed();
   history.replaceState(null, '', shareUrl());
 }
@@ -197,8 +207,24 @@ function findMe() {
 function openIdentity() {
   $('username').value = state.me;
   $('username-error').textContent = '';
+  $('username').removeAttribute('aria-invalid');
   $('identity-dialog').showModal();
   $('username').focus(); $('username').select();
+}
+
+function bindIdentityForm(form, input, error) {
+  form.onsubmit = event => {
+    event.preventDefault();
+    const username = normalizeUsername(input.value);
+    if (!validUsername(username)) {
+      error.textContent = 'Use a GitHub username: letters, numbers and single hyphens, up to 39 characters.';
+      input.setAttribute('aria-invalid', 'true'); input.focus(); return;
+    }
+    state.me = username; state.limit = INITIAL_ROWS;
+    $('identity-dialog').close(); render();
+    scrollTo($('profile')); $('edit-user')?.focus({ preventScroll: true });
+  };
+  input.oninput = () => { error.textContent = ''; input.removeAttribute('aria-invalid'); };
 }
 
 function toast(message) {
@@ -279,14 +305,7 @@ $('q').oninput = event => {
   clearTimeout(searchTimer); searchTimer = setTimeout(() => { if (state.data) renderTable(); }, 100);
 };
 $('find-me').onclick = findMe;
-$('identity-form').onsubmit = event => {
-  event.preventDefault();
-  const username = normalizeUsername($('username').value);
-  if (!validUsername(username)) { $('username-error').textContent = 'Use a GitHub username: letters, numbers and single hyphens, up to 39 characters.'; $('username').focus(); return; }
-  state.me = username; save('omi-me', username); state.limit = INITIAL_ROWS;
-  $('identity-dialog').close(); render(); $('edit-user')?.focus({ preventScroll: true });
-};
-$('username').oninput = () => { $('username-error').textContent = ''; };
+bindIdentityForm($('identity-form'), $('username'), $('username-error'));
 document.querySelectorAll('[data-close]').forEach(button => { button.onclick = () => button.closest('dialog').close(); });
 document.querySelectorAll('dialog').forEach(dialog => {
   dialog.addEventListener('click', event => {

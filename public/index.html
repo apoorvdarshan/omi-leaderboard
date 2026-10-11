@@ -19,7 +19,7 @@
   <a class="skip-link" href="#board-section">Skip to leaderboard</a>
   <header class="site-header">
     <nav class="container nav" aria-label="Main navigation">
-      <a href="#" class="brand" aria-label="Omi leaderboard home"><img class="logo" src="/assets/omi-logo.png" alt="omi" width="76" height="34"><span>Leaderboard</span></a>
+      <a href="/" class="brand" aria-label="Omi leaderboard home"><img class="logo" src="/assets/omi-logo.png" alt="omi" width="76" height="34"><span>Leaderboard</span></a>
       <div class="nav-actions">
         <a class="github-link" href="https://github.com/BasedHardware/omi" target="_blank" rel="noopener">GitHub <span data-icon="external" aria-hidden="true"></span></a>
         <div class="theme" id="theme" role="radiogroup" aria-label="Color theme">
@@ -47,8 +47,8 @@
           <img src="/assets/omi-studio-v2.png" width="1448" height="1086" alt="Omi's translucent graphite pendant suspended above a dark studio surface, its blue light reflected below" fetchpriority="high">
         </figure>
       </div>
-      <section class="profile-strip" id="profile" aria-label="Your contribution" aria-busy="true">
-        <div class="loading-profile"><div class="skeleton skeleton-avatar"></div><div class="skeleton skeleton-name"></div><span class="loading-label">Loading your contribution…</span></div>
+      <section class="profile-strip" id="profile" aria-label="Find your rank" aria-busy="true">
+        <div class="loading-profile"><div class="skeleton skeleton-avatar"></div><div class="skeleton skeleton-name"></div><span class="loading-label">Loading contributions…</span></div>
       </section>
       <div class="community-rail">
         <div class="facts" id="facts" role="group" aria-label="Repository totals"><span class="loading-label">Loading community contributions…</span></div>
@@ -59,7 +59,7 @@
     <section class="rankings" id="board-section" aria-labelledby="board-title" tabindex="-1">
       <div class="container">
         <div class="section-heading">
-          <div><h2 id="board-title">The people who ship Omi</h2><p id="ranking-description">Ranked by what landed on main. The blue light marks you.</p></div>
+          <div><h2 id="board-title">The people who ship Omi</h2><p id="ranking-description">Ranked by what landed on main. Every contribution counts.</p></div>
           <a class="repo-link" href="https://github.com/BasedHardware/omi" target="_blank" rel="noopener"><span data-icon="github" aria-hidden="true"></span>BasedHardware/omi</a>
         </div>
         <div class="filter-row">
@@ -99,7 +99,7 @@
     <p>Enter a GitHub username to see what you've shipped to Omi.</p>
     <form id="identity-form">
       <label for="username">GitHub username</label>
-      <div class="username-input"><span aria-hidden="true">@</span><input id="username" name="username" maxlength="39" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="apoorvdarshan" required aria-describedby="username-error"></div>
+      <div class="username-input"><span aria-hidden="true">@</span><input id="username" name="username" maxlength="39" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Your username" required aria-describedby="username-error"></div>
       <p class="field-error" id="username-error" role="alert"></p>
       <button class="button primary" type="submit">Show my rank <span data-icon="right" aria-hidden="true"></span></button>
     </form>
