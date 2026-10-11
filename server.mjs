@@ -10,7 +10,7 @@ const PORT = Number(process.env.PORT || 3000);
 const OWNER = "BasedHardware";
 const REPO = "omi";
 const REFRESH_MS = 30 * 60 * 1000;
-const MIME = { png: "image/png", jpg: "image/jpeg", svg: "image/svg+xml", webp: "image/webp" };
+const MIME = { png: "image/png", jpg: "image/jpeg", svg: "image/svg+xml", webp: "image/webp", css: "text/css; charset=utf-8", js: "text/javascript; charset=utf-8" };
 
 const token =
   process.env.GITHUB_TOKEN ||
@@ -177,7 +177,7 @@ const server = createServer(async (req, res) => {
       const file = await readFile(join(ROOT, "public", "assets", name));
       res.writeHead(200, {
         "Content-Type": MIME[name.split(".").pop()] || "application/octet-stream",
-        "Cache-Control": "public, max-age=86400",
+        "Cache-Control": /\.(css|js)$/.test(name) ? "no-cache" : "public, max-age=86400",
       });
       return res.end(file);
     }
