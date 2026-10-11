@@ -1,5 +1,5 @@
 import { icon, mountIcons } from './icons.js';
-import { REPO, LABELS, PERIODS, fmt, compact, formatValue, units, parseSettings, buildRankings, personalRank, repositoryTotals, movement, validUsername, normalizeUsername } from './model.js';
+import { REPO, LABELS, PERIODS, DEFAULT_PERIOD, fmt, compact, formatValue, units, parseSettings, buildRankings, personalRank, repositoryTotals, movement, validUsername, normalizeUsername } from './model.js';
 import { createShareCard, downloadCanvas } from './share.js';
 
 const $ = id => document.getElementById(id);
@@ -45,7 +45,7 @@ function shareUrl(settings = state) {
   const params = new URLSearchParams();
   if (settings.me) params.set('me', settings.me);
   if (settings.metric !== 'prs') params.set('metric', settings.metric);
-  if (settings.metric !== 'commits' && settings.period !== 'all') params.set('period', settings.period);
+  if (settings.metric !== 'commits' && settings.period !== DEFAULT_PERIOD) params.set('period', settings.period);
   if (!settings.hideBots) params.set('bots', '1');
   url.search = params.toString(); url.hash = '';
   return url.href;

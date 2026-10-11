@@ -2,7 +2,7 @@
 
 [Open the leaderboard](https://apoorvdarshan.github.io/omi-leaderboard/)
 
-A community-built leaderboard for [BasedHardware/omi](https://github.com/BasedHardware/omi). Explore merged PRs, lines changed, commits, and weekly rank movement. Enter a GitHub username to find and share your rank. The homepage starts with no person selected.
+A community-built leaderboard for [BasedHardware/omi](https://github.com/BasedHardware/omi). Explore merged PRs, lines changed, commits, and weekly rank movement. Enter a GitHub username to find and share your rank. The homepage defaults to **Past 30 days**, with no person selected. Other time ranges remain available; commit counts are all-time only.
 
 ## Automatic updates
 

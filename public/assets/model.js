@@ -1,6 +1,7 @@
 export const DAY = 86400000, WEEK = 7 * DAY, REPO = 'BasedHardware/omi';
 export const LABELS = { prs: 'Merged PRs', lines: 'Lines changed', commits: 'Commits' };
 export const PERIODS = { all: 'all time', 365: 'in the past year', 90: 'in the past 90 days', 30: 'in the past 30 days', 7: 'in the past 7 days' };
+export const DEFAULT_PERIOD = '30';
 export const UNITS = { prs: ['merged PR', 'merged PRs'], lines: ['line changed', 'lines changed'], commits: ['commit', 'commits'] };
 export const fmt = n => Math.round(n).toLocaleString('en-US');
 export const compact = n => n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : fmt(n);
@@ -14,7 +15,7 @@ export function parseSettings(search) {
   const requested = normalizeUsername(p.get('me'));
   return {
     metric: Object.hasOwn(LABELS, p.get('metric')) ? p.get('metric') : 'prs',
-    period: Object.hasOwn(PERIODS, p.get('period')) ? p.get('period') : 'all',
+    period: Object.hasOwn(PERIODS, p.get('period')) ? p.get('period') : DEFAULT_PERIOD,
     me: validUsername(requested) ? requested : '',
     hideBots: p.get('bots') !== '1',
   };

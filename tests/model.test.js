@@ -62,8 +62,11 @@ test('case changes to GitHub logins do not create duplicate contributors', () =>
 });
 
 test('invalid shared URL settings fall back safely and valid preferences survive', () => {
-  assert.deepEqual(parseSettings('?metric=__proto__&period=bad&me=%3Cscript%3E'), { metric: 'prs', period: 'all', me: '', hideBots: true });
+  assert.deepEqual(parseSettings('?metric=__proto__&period=bad&me=%3Cscript%3E'), { metric: 'prs', period: '30', me: '', hideBots: true });
   assert.deepEqual(parseSettings('?metric=lines&period=30&me=%40Alice&bots=1'), { metric: 'lines', period: '30', me: 'alice', hideBots: false });
+  assert.equal(parseSettings('').period, '30');
+  assert.equal(parseSettings('?period=all').period, 'all');
+  assert.equal(parseSettings('?period=7').period, '7');
 });
 
 test('the public leaderboard starts neutral, including with legacy saved identities', () => {
