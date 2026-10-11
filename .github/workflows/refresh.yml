@@ -1,22 +1,22 @@
-name: Refresh rankings and deploy Pages
+name: Refresh Cloudflare rankings
 
 on:
   push:
     branches: [master]
   workflow_dispatch:
   schedule:
-    # Avoid the busiest top-of-hour minutes. Times are UTC.
     - cron: '17,47 * * * *'
 
 permissions:
   contents: read
 
+# One publisher at a time prevents competing writes to the snapshot.
 concurrency:
-  group: github-pages
+  group: omi-data-publish
   cancel-in-progress: false
 
 jobs:
-  build:
+  refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -32,32 +32,16 @@ jobs:
           restore-keys: omi-data-v1-
       - name: Test
         run: npm test
-      - name: Fetch public GitHub data and build static site
+      - name: Fetch public GitHub data
         run: npm run build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish snapshot to Cloudflare
+        run: npm run publish:data
+        env:
+          OMI_PUBLISH_TOKEN: ${{ secrets.OMI_PUBLISH_TOKEN }}
       - name: Save successful data sync
         uses: actions/cache/save@v6
         with:
           path: data/cache.json
           key: omi-data-v1-${{ github.run_id }}-${{ github.run_attempt }}
-      - name: Upload site
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/configure-pages@v6
-      - name: Publish
-        id: deployment
-        uses: actions/deploy-pages@v5

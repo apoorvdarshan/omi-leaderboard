@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "omi-leaderboard",
+  "main": "worker/index.js",
+  "account_id": "9e5adbe3da178e02dbb5b3c27ac1c761",
+  "compatibility_date": "2026-10-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "omi-leaderboard.apoorvdarshan.com", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/data/leaderboard.json", "/api/publish"]
+  },
+  "kv_namespaces": [
+    { "binding": "OMI_DATA", "id": "cebcd5199e17464884a274b6096100e1" }
+  ]
+}

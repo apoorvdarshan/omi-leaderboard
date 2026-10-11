@@ -6,7 +6,7 @@ import { createDataStore, githubToken } from '../lib/github-data.mjs';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const output = join(root, 'dist');
 const store = await createDataStore({ cachePath: join(root, 'data', 'cache.json'), token: githubToken() });
-// A failed sync fails the build; the previous Pages deployment stays online.
+// A failed sync fails the build; the last successful snapshot stays online.
 const snapshot = await store.refresh();
 await mkdir(output, { recursive: true });
 await cp(join(root, 'public'), output, { recursive: true });
